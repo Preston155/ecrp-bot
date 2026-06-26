@@ -120,19 +120,16 @@ async function applyMemberRewards(member, config, robloxUser) {
     }
   }
 
-  if (config.nicknameMode && config.nicknameMode !== 'off') {
-    const nickBase = config.nicknameMode === 'display' ? robloxUser.displayName : robloxUser.name;
-    const nickname = String(nickBase || '').slice(0, 32);
-    if (member.manageable && nickname && member.displayName !== nickname) {
-      await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
-        logger.warn('verify_nickname_failed', {
-          guildId: member.guild.id,
-          userId: member.id,
-          message: error.message,
-        });
+  const nickname = String(robloxUser.name || '').slice(0, 32);
+  if (member.manageable && nickname && member.displayName !== nickname) {
+    await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
+      logger.warn('verify_nickname_failed', {
+        guildId: member.guild.id,
+        userId: member.id,
+        message: error.message,
       });
-      if (member.displayName === nickname) changes.push(`Nickname: ${nickname}`);
-    }
+    });
+    if (member.displayName === nickname) changes.push(`Display name: ${nickname}`);
   }
 
   return changes;
@@ -255,9 +252,9 @@ async function settingsEmbed(guildId, guild) {
       { name: 'Verified Role', value: config.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : 'Not set', inline: true },
       { name: 'Log Channel', value: config.logChannelId ? `<#${config.logChannelId}>` : 'Not set', inline: true },
       { name: 'Verify Channel', value: config.verifyChannelId ? `<#${config.verifyChannelId}>` : 'Any channel', inline: true },
-      { name: 'Nickname Mode', value: config.nicknameMode || 'roblox', inline: true },
+      { name: 'Display Name', value: 'Always set to Roblox username', inline: true },
       { name: 'Verified Users', value: String(linked), inline: true },
-      { name: 'Commands', value: '`/verify start`, `/verify profile`, `/verify unlink`\nStaff: `-verifyrole @role`, `-verifylogs #channel`, `-verifychannel #channel`, `-verifynick roblox|display|off`', inline: false },
+      { name: 'Commands', value: '`/verify start`, `/verify profile`, `/verify unlink`\nStaff: `-verifyrole @role`, `-verifylogs #channel`, `-verifychannel #channel`, Display names automatically use Roblox username', inline: false },
     ],
   });
 }
@@ -322,7 +319,7 @@ async function prefixCommand(message, args) {
     await message.channel.send({ content: `✅ Verification channel set to ${channel}.`, allowedMentions: { parse: [] } });
   } else if (command === '-verifynick') {
     const mode = (args[0] || '').toLowerCase();
-    if (!['roblox', 'display', 'off'].includes(mode)) throw new Error('Usage: `-verifynick roblox|display|off`');
+    if (!['roblox', 'display', 'off'].includes(mode)) throw new Error('Usage: Display names automatically use Roblox username');
     await store.update((data) => { configOf(data, message.guildId).nicknameMode = mode; return data; });
     await message.channel.send({ content: `✅ Verification nickname mode set to **${mode}**.`, allowedMentions: { parse: [] } });
   } else if (command === '-verifysettings') {
