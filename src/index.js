@@ -8,6 +8,7 @@ const { logger } = require('./utils/logger');
 const statusPanels = require('./systems/status/StatusPanelManager');
 const counting = require('./systems/counting-system');
 const tickets = require('./systems/ticket-system');
+const verification = require('./systems/verification-system');
 
 async function bootstrap() {
   const client = createClient();
@@ -35,6 +36,7 @@ async function bootstrap() {
     await Promise.all([
       counting.flushStore().catch((error) => logger.warn('counting_flush_failed', { message: error.message })),
       tickets.flushStore().catch((error) => logger.warn('ticket_flush_failed', { message: error.message })),
+      verification.flushStore().catch((error) => logger.warn('verification_flush_failed', { message: error.message })),
     ]);
     client.destroy();
     logger.info('shutdown_complete');

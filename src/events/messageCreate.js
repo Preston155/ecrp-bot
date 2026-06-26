@@ -9,6 +9,7 @@ const counting = require('../systems/counting-system');
 const tickets = require('../systems/ticket-system');
 const botUpdates = require('../systems/bot-updates-system');
 const developerLogs = require('../systems/developer-logs');
+const verification = require('../systems/verification-system');
 
 module.exports = {
   name: Events.MessageCreate,
@@ -21,6 +22,23 @@ module.exports = {
     if (content.toLowerCase() === '-botlogs' || content.toLowerCase().startsWith('-botlogs ')) {
       const argument = content.split(/\s+/)[1];
       await developerLogs.send(message, argument);
+      return;
+    }
+
+
+    const verificationCommands = new Set(['-verifyrole', '-verifylogs', '-verifychannel', '-verifynick', '-verifysettings']);
+    const verificationCommand = content.split(/\s+/)[0].toLowerCase();
+    if (verificationCommands.has(verificationCommand)) {
+      const args = content.slice(verificationCommand.length).trim().split(/\s+/).filter(Boolean);
+      try {
+        await verification.prefixCommand(message, args);
+      } catch (error) {
+        const reply = await message.channel.send({
+          content: error.message || 'Verification setup failed.',
+          allowedMentions: { parse: [] },
+        });
+        setTimeout(() => reply.delete().catch(() => null), 7000);
+      }
       return;
     }
 

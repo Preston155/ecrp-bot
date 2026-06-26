@@ -16,7 +16,9 @@ const { logger } = require('../utils/logger');
 const sessions = require('../systems/sessions/SessionManager');
 const tickets = require('../systems/ticket-system');
 const suggestCommand = require('../commands/utility/suggest');
+const verifyCommand = require('../commands/utility/verify');
 const suggestions = require('../systems/suggestion-system');
+const verification = require('../systems/verification-system');
 
 async function commandInteraction(interaction) {
   if (interaction.commandName === suggestCommand.data.name) {
@@ -27,6 +29,17 @@ async function commandInteraction(interaction) {
       const payload = { content: error.message || 'Your suggestion could not be posted.', allowedMentions: { parse: [] } };
       if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => null);
       else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+    return;
+  }
+  if (interaction.commandName === verifyCommand.data.name) {
+    try {
+      await verification.handleCommand(interaction);
+    } catch (error) {
+      logger.error('verification_command_failed', error, { userId: interaction.user.id, guildId: interaction.guildId });
+      const payload = { content: error.message || 'Verification failed.', allowedMentions: { parse: [] }, flags: MessageFlags.Ephemeral };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => null);
+      else await interaction.reply(payload).catch(() => null);
     }
     return;
   }
@@ -131,6 +144,7 @@ async function showEditModal(interaction, id) {
 }
 
 async function buttonInteraction(interaction) {
+  if (await verification.handleInteraction(interaction)) return;
   if (await suggestions.handleInteraction(interaction)) return;
   if (interaction.customId.startsWith('session:')) {
     await sessions.handleInteraction(interaction);

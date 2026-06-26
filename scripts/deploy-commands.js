@@ -3,6 +3,7 @@ require('dotenv').config();
 const { REST, Routes } = require('discord.js');
 const giveaway = require('../src/commands/giveaways/giveaway');
 const suggest = require('../src/commands/utility/suggest');
+const verify = require('../src/commands/utility/verify');
 
 function clientIdFromToken(token) {
   const encoded = token.split('.')[0];
@@ -16,7 +17,7 @@ async function main() {
   if (!/^\d{17,20}$/.test(clientId)) throw new Error('Unable to determine CLIENT_ID.');
 
   const rest = new REST({ version: '10' }).setToken(token);
-  const commands = [giveaway.data.toJSON(), suggest.data.toJSON()];
+  const commands = [giveaway.data.toJSON(), suggest.data.toJSON(), verify.data.toJSON()];
   await rest.put(Routes.applicationCommands(clientId), { body: commands });
   console.log(`Deployed ${commands.length} global command group to ${clientId}.`);
 }
