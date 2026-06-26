@@ -2,6 +2,7 @@ const { ChannelType } = require('discord.js');
 const manager = require('../../systems/giveaways/GiveawayManager');
 const config = require('../../systems/giveaways/GiveawayConfig');
 const { parseDuration } = require('../../utils/time');
+const { persistGiveawayImage } = require('../../utils/persist-giveaway-image');
 
 function parseRoleIds(value) {
   return [...new Set((value || '').match(/\d{17,20}/g) || [])];
@@ -27,14 +28,8 @@ module.exports = async function start(interaction) {
   }
 
   const image = interaction.options.getAttachment('image');
-  const imageUrl = image?.url || interaction.options.getString('image_url');
-  if (imageUrl) {
-    try {
-      new URL(imageUrl);
-    } catch {
-      throw new Error('The image URL is invalid.');
-    }
-  }
+  const imageInput = image?.url || interaction.options.getString('image_url');
+  const imageUrl = imageInput ? await persistGiveawayImage(imageInput, { sourceName: image?.name }) : null;
 
   const giveaway = await manager.create({
     guild: interaction.guild,

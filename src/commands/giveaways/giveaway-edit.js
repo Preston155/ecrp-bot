@@ -1,6 +1,7 @@
 const manager = require('../../systems/giveaways/GiveawayManager');
 const config = require('../../systems/giveaways/GiveawayConfig');
 const { parseDuration } = require('../../utils/time');
+const { persistGiveawayImage } = require('../../utils/persist-giveaway-image');
 
 function parseRoleIds(value) {
   return [...new Set((value || '').match(/\d{17,20}/g) || [])];
@@ -19,7 +20,8 @@ module.exports = async function edit(interaction) {
   if (accountAge && !minimumAccountAgeMs) throw new Error('Invalid minimum account age.');
   if (joinAge && !minimumJoinAgeMs) throw new Error('Invalid minimum server join age.');
   const image = interaction.options.getAttachment('image');
-  const imageUrl = image?.url || interaction.options.getString('image_url');
+  const imageInput = image?.url || interaction.options.getString('image_url');
+  const imageUrl = imageInput ? await persistGiveawayImage(imageInput, { sourceName: image?.name }) : undefined;
 
   const updated = await manager.edit(id, interaction.user.id, {
     prize: interaction.options.getString('prize'),
