@@ -1,7 +1,4 @@
 const {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
@@ -15,7 +12,6 @@ const store = new JsonStore('verification.json', {
   pending: {},
 });
 
-const CODE_TTL_MS = 30 * 60 * 1000;
 const VERIFY_COLOR = 0x22c55e;
 const INFO_COLOR = 0x2b7fff;
 const ERROR_COLOR = 0xef4444;
@@ -24,10 +20,6 @@ function key(guildId, userId) {
   return `${guildId}:${userId}`;
 }
 
-function makeCode(userId) {
-  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `ECRP-${userId.slice(-4)}-${random}`;
-}
 
 function cleanUsername(input) {
   return String(input || '').trim().replace(/^@+/, '').slice(0, 32);
@@ -47,15 +39,6 @@ function linkOf(data, guildId, userId) {
   return data.links[key(guildId, userId)] || null;
 }
 
-function pendingOf(data, guildId, userId) {
-  const item = data.pending[key(guildId, userId)] || null;
-  if (!item) return null;
-  if (item.expiresAt && item.expiresAt < Date.now()) {
-    delete data.pending[key(guildId, userId)];
-    return null;
-  }
-  return item;
-}
 
 async function robloxFetch(url, options = {}) {
   const res = await fetch(url, {
@@ -118,104 +101,14 @@ function verifyEmbed({ title, description, color = INFO_COLOR, robloxUser = null
   return embed;
 }
 
-function checkButton() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('verify:check')
-      .setLabel('I added the code')
-      .setEmoji('✅')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId('verify:cancel')
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
 
-async function start(interaction, username) {
-  const robloxUser = await resolveRobloxUser(username);
-  const code = makeCode(interaction.user.id);
-  await store.update((data) => {
-    configOf(data, interaction.guildId);
-    data.pending[key(interaction.guildId, interaction.user.id)] = {
-      code,
-      robloxId: robloxUser.id,
-      username: robloxUser.name,
-      displayName: robloxUser.displayName,
-      avatarUrl: robloxUser.avatarUrl,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + CODE_TTL_MS,
-    };
-    return data;
-  });
-
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    embeds: [verifyEmbed({
-      title: '🔐 ECRP Roblox Verification',
-      color: INFO_COLOR,
-      robloxUser,
-      description: [
-        'Put this code in your Roblox **About / Description**:',
-        `### \`${code}\``,
-        'Then press **I added the code** below. This expires in **30 minutes**.',
-      ].join('\n'),
-      fields: [
-        { name: 'Why?', value: 'This proves you own the Roblox account before ECRP links it to your Discord.', inline: false },
-      ],
-    })],
-    components: [checkButton()],
-    allowedMentions: { parse: [] },
-  });
-}
-
-async function applyMemberRewards(member, config, robloxUser) {
-  const changes = [];
-  if (config.verifiedRoleId) {
-    const role = member.guild.roles.cache.get(config.verifiedRoleId);
-    if (role && !member.roles.cache.has(role.id)) {
-      await member.roles.add(role, 'ECRP Roblox verification').catch((error) => {
-        logger.warn('verify_role_add_failed', { guildId: member.guild.id, userId: member.id, roleId: role.id, message: error.message });
-      });
-      changes.push(`Role: ${role.name}`);
-    }
-  }
-
-  if (config.nicknameMode && config.nicknameMode !== 'off') {
-    const nickBase = config.nicknameMode === 'display' ? robloxUser.displayName : robloxUser.name;
-    const nickname = nickBase.slice(0, 32);
-    if (member.manageable && nickname && member.displayName !== nickname) {
-      await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
-        logger.warn('verify_nickname_failed', { guildId: member.guild.id, userId: member.id, message: error.message });
-      });
-      changes.push(`Nickname: ${nickname}`);
-    }
-  }
-  return changes;
-}
-
-async function sendLog(guild, config, embed) {
-  if (!config.logChannelId) return;
-  const channel = await guild.channels.fetch(config.logChannelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
-  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
-}
-
-async function complete(interaction) {
-  let pending;
+async function completeInstant(interaction, robloxUser) {
   let config;
   await store.update((data) => {
     config = configOf(data, interaction.guildId);
-    pending = pendingOf(data, interaction.guildId, interaction.user.id);
+    delete data.pending[key(interaction.guildId, interaction.user.id)];
     return data;
   });
-  if (!pending) throw new Error('No active verification found. Run `/verify start` again.');
-
-  const robloxUser = await resolveRobloxUser(pending.username);
-  if (robloxUser.id !== pending.robloxId) throw new Error('That Roblox username changed accounts. Start verification again.');
-  if (!String(robloxUser.description || '').includes(pending.code)) {
-    throw new Error(`I do not see your code in the Roblox profile description yet. Add \`${pending.code}\` and try again.`);
-  }
 
   const changes = await applyMemberRewards(interaction.member, config, robloxUser);
   await store.update((data) => {
@@ -228,25 +121,36 @@ async function complete(interaction) {
       avatarUrl: robloxUser.avatarUrl,
       verifiedAt: Date.now(),
     };
-    delete data.pending[key(interaction.guildId, interaction.user.id)];
     return data;
   });
 
   const embed = verifyEmbed({
-    title: '✅ Verified',
+    title: '✅ ECRP Roblox Verified',
     color: VERIFY_COLOR,
     robloxUser,
-    description: `${interaction.user} is now verified with ECRP.`,
-    fields: [{ name: 'Applied', value: changes.length ? changes.join('\n') : 'Linked account saved.', inline: false }],
+    description: `${interaction.user} has been linked to this Roblox account.`,
+    fields: [
+      { name: 'Applied', value: changes.length ? changes.join('\n') : 'Linked account saved.', inline: false },
+      { name: 'Heads up', value: 'This is quick username linking. No Roblox bio code needed.', inline: false },
+    ],
   });
   await sendLog(interaction.guild, config, embed);
   return { embed, robloxUser, changes };
 }
 
-async function check(interaction) {
+async function start(interaction, username) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await complete(interaction);
+  const robloxUser = await resolveRobloxUser(username);
+  const result = await completeInstant(interaction, robloxUser);
   await interaction.editReply({ embeds: [result.embed], components: [], allowedMentions: { parse: [] } });
+}
+
+async function check(interaction) {
+  await interaction.reply({
+    content: 'No bio code is needed anymore. Run `/verify start username:<your Roblox username>` and I will link it right away.',
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  });
 }
 
 async function cancel(interaction) {
@@ -296,14 +200,14 @@ async function settingsEmbed(guildId, guild) {
   return verifyEmbed({
     title: '🛡️ ECRP Verification Settings',
     color: INFO_COLOR,
-    description: 'Roblox verification is active. Users verify by placing a code in their Roblox About/Description.',
+    description: 'Roblox verification is active. Users enter their Roblox username and the bot links it instantly. No bio code needed.',
     fields: [
       { name: 'Verified Role', value: config.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : 'Not set', inline: true },
       { name: 'Log Channel', value: config.logChannelId ? `<#${config.logChannelId}>` : 'Not set', inline: true },
       { name: 'Verify Channel', value: config.verifyChannelId ? `<#${config.verifyChannelId}>` : 'Any channel', inline: true },
       { name: 'Nickname Mode', value: config.nicknameMode || 'roblox', inline: true },
       { name: 'Verified Users', value: String(linked), inline: true },
-      { name: 'Commands', value: '`/verify start`, `/verify check`, `/verify profile`, `/verify unlink`\nStaff: `-verifyrole @role`, `-verifylogs #channel`, `-verifychannel #channel`, `-verifynick roblox|display|off`', inline: false },
+      { name: 'Commands', value: '`/verify start`, `/verify profile`, `/verify unlink`\nStaff: `-verifyrole @role`, `-verifylogs #channel`, `-verifychannel #channel`, `-verifynick roblox|display|off`', inline: false },
     ],
   });
 }

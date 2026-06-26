@@ -14,9 +14,6 @@ module.exports = {
         .setMinLength(3)
         .setMaxLength(20)))
     .addSubcommand((sub) => sub
-      .setName('check')
-      .setDescription('Check your Roblox profile for the verification code'))
-    .addSubcommand((sub) => sub
       .setName('profile')
       .setDescription('View a verified Roblox profile')
       .addUserOption((option) => option
