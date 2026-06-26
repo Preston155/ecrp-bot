@@ -38,6 +38,16 @@ async function bootstrap() {
       tickets.flushStore().catch((error) => logger.warn('ticket_flush_failed', { message: error.message })),
       verification.flushStore().catch((error) => logger.warn('verification_flush_failed', { message: error.message })),
     ]);
+
+    try {
+      if (client.isReady()) {
+        await client.user.setPresence({ status: 'invisible', activities: [] }).catch(() => null);
+        await new Promise((resolve) => setTimeout(resolve, 750));
+      }
+    } catch (error) {
+      logger.warn('presence_offline_failed', { message: error.message });
+    }
+
     client.destroy();
     logger.info('shutdown_complete');
     process.exit(0);
