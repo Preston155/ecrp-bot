@@ -121,15 +121,29 @@ async function applyMemberRewards(member, config, robloxUser) {
   }
 
   const nickname = String(robloxUser.name || '').slice(0, 32);
-  if (member.manageable && nickname && member.displayName !== nickname) {
-    await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
-      logger.warn('verify_nickname_failed', {
-        guildId: member.guild.id,
-        userId: member.id,
-        message: error.message,
+  if (nickname && member.displayName !== nickname) {
+    const me = member.guild.members.me;
+    const canManageNicknames = me?.permissions.has(PermissionFlagsBits.ManageNicknames);
+    if (!canManageNicknames) {
+      changes.push('Display name not changed: I need **Manage Nicknames**.');
+    } else if (!member.manageable) {
+      changes.push("Display name not changed: move the **ECRP Assistant** role above this user's highest role.");
+    } else {
+      await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
+        logger.warn('verify_nickname_failed', {
+          guildId: member.guild.id,
+          userId: member.id,
+          message: error.message,
+        });
       });
-    });
-    if (member.displayName === nickname) changes.push(`Display name: ${nickname}`);
+      if (member.displayName === nickname) {
+        changes.push(`Display name: ${nickname}`);
+      } else {
+        changes.push('Display name not changed: Discord blocked the nickname update.');
+      }
+    }
+  } else if (nickname) {
+    changes.push(`Display name already set: ${nickname}`);
   }
 
   return changes;
