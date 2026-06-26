@@ -1,0 +1,25 @@
+{
+  "name": "bot4",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready Discord bot foundation",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "find src scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart bot4",
+    "pm2:logs": "pm2 logs bot4 --lines 100",
+    "commands:deploy": "node scripts/deploy-commands.js",
+    "commands:clear": "node scripts/clear-commands.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.26.0",
+    "dotenv": "^16.6.1",
+    "better-sqlite3": "^11.10.0"
+  }
+}
