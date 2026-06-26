@@ -102,6 +102,56 @@ function verifyEmbed({ title, description, color = INFO_COLOR, robloxUser = null
 }
 
 
+async function applyMemberRewards(member, config, robloxUser) {
+  const changes = [];
+
+  if (config.verifiedRoleId) {
+    const role = member.guild.roles.cache.get(config.verifiedRoleId);
+    if (role && !member.roles.cache.has(role.id)) {
+      await member.roles.add(role, 'ECRP Roblox verification').catch((error) => {
+        logger.warn('verify_role_add_failed', {
+          guildId: member.guild.id,
+          userId: member.id,
+          roleId: role.id,
+          message: error.message,
+        });
+      });
+      if (member.roles.cache.has(role.id)) changes.push(`Role: ${role.name}`);
+    }
+  }
+
+  if (config.nicknameMode && config.nicknameMode !== 'off') {
+    const nickBase = config.nicknameMode === 'display' ? robloxUser.displayName : robloxUser.name;
+    const nickname = String(nickBase || '').slice(0, 32);
+    if (member.manageable && nickname && member.displayName !== nickname) {
+      await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
+        logger.warn('verify_nickname_failed', {
+          guildId: member.guild.id,
+          userId: member.id,
+          message: error.message,
+        });
+      });
+      if (member.displayName === nickname) changes.push(`Nickname: ${nickname}`);
+    }
+  }
+
+  return changes;
+}
+
+async function sendLog(guild, config, embed) {
+  if (!config.logChannelId) return;
+  const channel = await guild.channels.fetch(config.logChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch((error) => {
+    logger.warn('verify_log_send_failed', {
+      guildId: guild.id,
+      channelId: config.logChannelId,
+      message: error.message,
+    });
+  });
+}
+
+
 async function completeInstant(interaction, robloxUser) {
   let config;
   await store.update((data) => {
