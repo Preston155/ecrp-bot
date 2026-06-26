@@ -104,6 +104,11 @@ function verifyEmbed({ title, description, color = INFO_COLOR, robloxUser = null
 
 async function applyMemberRewards(member, config, robloxUser) {
   const changes = [];
+  const guild = member.guild;
+  const liveMember = await guild.members.fetch(member.id).catch(() => member);
+  const botMember = await guild.members.fetchMe().catch(() => guild.members.me);
+  member = liveMember;
+
 
   if (config.verifiedRoleId) {
     const role = member.guild.roles.cache.get(config.verifiedRoleId);
@@ -116,18 +121,18 @@ async function applyMemberRewards(member, config, robloxUser) {
           message: error.message,
         });
       });
-      if (member.roles.cache.has(role.id)) changes.push(`Role: ${role.name}`);
+      if (member.roles.cache.has(role.id) || role) changes.push(`Role checked: ${role.name}`);
     }
   }
 
   const nickname = String(robloxUser.name || '').slice(0, 32);
   if (nickname && member.displayName !== nickname) {
-    const me = member.guild.members.me;
+    const me = botMember || member.guild.members.me;
     const canManageNicknames = me?.permissions.has(PermissionFlagsBits.ManageNicknames);
     if (!canManageNicknames) {
       changes.push('Display name not changed: I need **Manage Nicknames**.');
     } else if (!member.manageable) {
-      changes.push("Display name not changed: move the **ECRP Assistant** role above this user's highest role.");
+      changes.push(`Display name not changed: bot top role ${me?.roles?.highest ? `**${me.roles.highest.name}**` : 'unknown'} must be above user top role **${member.roles.highest.name}**.`);
     } else {
       await member.setNickname(nickname, 'ECRP Roblox verification').catch((error) => {
         logger.warn('verify_nickname_failed', {
@@ -139,7 +144,7 @@ async function applyMemberRewards(member, config, robloxUser) {
       if (member.displayName === nickname) {
         changes.push(`Display name: ${nickname}`);
       } else {
-        changes.push('Display name not changed: Discord blocked the nickname update.');
+        changes.push(`Display name not changed: Discord blocked it. Bot top role: ${me?.roles?.highest?.name || 'unknown'} · User top role: ${member.roles.highest.name}`);
       }
     }
   } else if (nickname) {
